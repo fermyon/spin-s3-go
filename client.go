@@ -19,7 +19,6 @@ type Config struct {
 	Region       string
 
 	// Endpoint is the URL to the s3 service.
-	// Must not end with `/`. ...yet
 	Endpoint string
 }
 
@@ -194,5 +193,10 @@ func (c *Client) GetObject(ctx context.Context, bucketName, objectName string) (
 }
 
 func (c *Client) endpoint(elem ...string) string {
-	return c.config.Endpoint + "/" + path.Join(elem...)
+	endpoint := c.config.Endpoint
+	// Strip trailing slashes.
+	for len(endpoint) > 0 && endpoint[len(endpoint)-1] == '/' {
+		endpoint = endpoint[0 : len(endpoint)-1]
+	}
+	return endpoint + "/" + path.Join(elem...)
 }
