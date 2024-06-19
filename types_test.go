@@ -3,8 +3,6 @@ package s3
 import (
 	"encoding/xml"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 const listBucketsResponse = `
@@ -58,25 +56,31 @@ const listObjectsResponse = `
 func TestXML(t *testing.T) {
 	t.Skip()
 	var info ListBucketsResponse
-	err := xml.Unmarshal([]byte(listBucketsResponse), &info)
-	require.NoError(t, err, "Unmarshal failed")
+	if err := xml.Unmarshal([]byte(listBucketsResponse), &info); err != nil {
+		t.Fatalf("failed to unmarshal: %s", err)
+	}
 	t.Logf("%#v", info)
 
 	out, err := xml.MarshalIndent(&info, "  ", "    ")
-	require.NoError(t, err, "Marshal failed")
+	if err != nil {
+		t.Fatalf("failed to unmarshal: %s", err)
+	}
 	t.Log(string(out))
 }
 
 func TestBucketsXML(t *testing.T) {
 	t.Skip()
 	var info ListObjectsResponse
-	err := xml.Unmarshal([]byte(listBucketsResponse), &info)
-	require.NoError(t, err, "Unmarshal failed")
+	if err := xml.Unmarshal([]byte(listBucketsResponse), &info); err != nil {
+		t.Fatalf("failed to unmarshal: %s", err)
+	}
 	t.Logf("%#v", info)
 
 	// info.CommonPrefixes = []CommonPrefix{{Prefix: "hello"}}
 
 	out, err := xml.MarshalIndent(&info, "  ", "    ")
-	require.NoError(t, err, "Marshal failed")
+	if err != nil {
+		t.Fatalf("failed to unmarshal: %s", err)
+	}
 	t.Log(string(out))
 }

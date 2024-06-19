@@ -53,6 +53,7 @@ type Owner struct {
 	ID          string
 }
 
+// https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#RESTErrorResponses
 type ErrorResponse struct {
 	Code      string `xml:"Code"`
 	Message   string `xml:"Message"`

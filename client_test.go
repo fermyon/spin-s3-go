@@ -4,10 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
-	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 func localClient(t *testing.T) *Client {
@@ -17,8 +14,9 @@ func localClient(t *testing.T) *Client {
 		Endpoint: "http://s3.localhost.localstack.cloud:4566",
 	}
 	client, err := New(cfg)
-	require.NoError(t, err, "failed creating test client")
-
+	if err != nil {
+		t.Fatalf("failed creating test client: %s", err)
+	}
 	return client
 }
 
@@ -36,7 +34,9 @@ func awsClient(t *testing.T) *Client {
 		Endpoint: "https://s3.us-east-1.amazonaws.com",
 	}
 	client, err := New(cfg)
-	require.NoError(t, err, "failed creating test client")
+	if err != nil {
+		t.Fatalf("failed creating test client: %s", err)
+	}
 
 	return client
 }
@@ -46,17 +46,20 @@ func TestListBuckets(t *testing.T) {
 	client := localClient(t)
 
 	ctx := context.Background()
-	err := client.CreateBucket(ctx, "foo")
-	require.NoError(t, err, "failed listing buckets")
+	if err := client.CreateBucket(ctx, "foo"); err != nil {
+		t.Fatalf("failed creating bucket: %s", err)
+	}
 
-	err = client.CreateBucket(ctx, "bar")
-	require.NoError(t, err, "failed listing buckets")
+	if err := client.CreateBucket(ctx, "bar"); err != nil {
+		t.Fatalf("failed creating bucket: %s", err)
+	}
 
 	// Trace the next request
 	client.trace = true
 	resp, err := client.ListBuckets(ctx)
-	require.NoError(t, err, "failed listing buckets")
-	require.NotNil(t, resp)
+	if err != nil {
+		t.Fatalf("failed listing buckets: %s", err)
+	}
 	// TODO assert the response
 
 	t.Log("List buckets response:")
@@ -70,17 +73,20 @@ func TestListObjects(t *testing.T) {
 	client := localClient(t)
 
 	ctx := context.Background()
-	err := client.CreateBucket(ctx, "foo")
-	require.NoError(t, err, "failed listing buckets")
+	if err := client.CreateBucket(ctx, "foo"); err != nil {
+		t.Fatalf("failed creating bucket: %s", err)
+	}
 
-	err = client.PutObject(ctx, "foo", "data.txt", strings.NewReader("Hello S3!"))
-	require.NoError(t, err, "failed putting object")
+	if err := client.PutObject(ctx, "foo", "data.txt", []byte("Hello S3!")); err != nil {
+		t.Fatalf("failed putting object: %s", err)
+	}
 
 	// Trace the next request
 	client.trace = true
 	listObjectsResp, err := client.ListObjects(ctx, "foo")
-	require.NoError(t, err, "failed listing objects")
-	require.NotNil(t, listObjectsResp)
+	if err != nil {
+		t.Fatalf("failed listing objects: %s", err)
+	}
 	// TODO assert the response
 
 	t.Log("List objects response:")
@@ -94,23 +100,29 @@ func TestClientLocal(t *testing.T) {
 	client := localClient(t)
 
 	ctx := context.Background()
-	err := client.CreateBucket(ctx, "foo")
-	require.NoError(t, err, "failed listing buckets")
+	if err := client.CreateBucket(ctx, "foo"); err != nil {
+		t.Fatalf("failed creating bucket: %s", err)
+	}
 
-	r := strings.NewReader("Hello S3!")
-	err = client.PutObject(ctx, "foo", "data.txt", r)
-	require.NoError(t, err, "failed putting object")
+	if err := client.PutObject(ctx, "foo", "data.txt", []byte("Hello S3!")); err != nil {
+		t.Fatalf("failed putting object: %s", err)
+	}
 
 	object, err := client.GetObject(ctx, "foo", "data.txt")
-	require.NoError(t, err, "failed getting object")
+	if err != nil {
+		t.Fatalf("failed getting object: %s", err)
+	}
 
 	b, err := io.ReadAll(object)
-	require.NoError(t, err, "failed reading object")
+	if err != nil {
+		t.Fatalf("failed reading object: %s", err)
+	}
 	t.Logf("%#v", string(b))
 
 	listObjectsResp, err := client.ListObjects(ctx, "foo")
-	require.NoError(t, err, "failed listing objects")
-	require.NotNil(t, listObjectsResp)
+	if err != nil {
+		t.Fatalf("failed listing objects: %s", err)
+	}
 
 	t.Log("List objects response:")
 	t.Logf("%#v", listObjectsResp)
@@ -131,8 +143,9 @@ func TestClientAWS(t *testing.T) {
 	// require.NoError(t, err, "failed listing buckets")
 
 	buckets, err := client.ListBuckets(context.TODO())
-	require.NoError(t, err, "failed listing buckets")
-	require.NotNil(t, buckets)
+	if err != nil {
+		t.Fatalf("failed listing buckets: %s", err)
+	}
 
 	t.Logf("%#v", buckets)
 }
