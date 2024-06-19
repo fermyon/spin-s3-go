@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	spinhttp "github.com/fermyon/spin-go-sdk/http"
 	"github.com/fermyon/spin-go-sdk/variables"
@@ -15,29 +14,39 @@ import (
 
 func init() {
 	spinhttp.Handle(func(w http.ResponseWriter, r *http.Request) {
-		accessKeyID, err := variables.Get("aws_access_key_id")
+		accessKeyID, err := variables.Get("s3_access_key_id")
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		secretAccessKey, err := variables.Get("aws_secret_access_key")
+		secretAccessKey, err := variables.Get("s3_secret_access_key")
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		sessionToken, err := variables.Get("aws_session_token")
+		sessionToken, err := variables.Get("s3_session_token")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		region, err := variables.Get("s3_region")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		endpoint, err := variables.Get("s3_endpoint")
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
 
-		// aws config
+		// S3 config
 		cfg := s3.Config{
 			AccessKey:    accessKeyID,
 			SecretKey:    secretAccessKey,
 			SessionToken: sessionToken,
-			Region:       "us-east-1",
-			Endpoint:     "https://s3.us-east-1.amazonaws.com",
+			Region:       region,
+			Endpoint:     endpoint,
 		}
 		s3Client, err := s3.New(cfg)
 		if err != nil {
@@ -61,12 +70,11 @@ func init() {
 		const fileName = "hello.txt"
 
 		fmt.Println("-- Creating object --")
-		if err := s3Client.PutObject(ctx, bucketName, fileName, strings.NewReader("Hello S3!")); err != nil {
+		if err := s3Client.PutObject(ctx, bucketName, fileName, []byte("Hello S3!")); err != nil {
 			fmt.Println(err)
 			return
 		}
 
-		// Currently broken... =[
 		fmt.Println("-- Getting object --")
 		contents, err := s3Client.GetObject(ctx, bucketName, fileName)
 		if err != nil {
