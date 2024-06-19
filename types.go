@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -50,4 +51,15 @@ type ObjectInfo struct {
 type Owner struct {
 	DisplayName string
 	ID          string
+}
+
+type ErrorResponse struct {
+	Code      string `xml:"Code"`
+	Message   string `xml:"Message"`
+	Resource  string `xml:"Resource"`
+	RequestID string `xml:"RequestId"`
+}
+
+func (e ErrorResponse) Error() string {
+	return fmt.Sprintf("%s: %s", e.Code, e.Message)
 }
