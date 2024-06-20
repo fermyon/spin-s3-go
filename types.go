@@ -19,7 +19,6 @@ type BucketInfo struct {
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjects.html#API_ListObjects_ResponseSyntax
 type ListObjectsResponse struct {
-	// FIXME: Unmarshal doesn't populate this.
 	CommonPrefixes []CommonPrefix
 	Contents       []ObjectInfo
 	Delimiter      string

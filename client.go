@@ -36,9 +36,9 @@ type Config struct {
 }
 
 // validate checks for valid config options.
-func (c Config) validate() error {
+func (c *Config) validate() error {
 	if c.Endpoint == "" && c.Region == "" {
-		return errors.New("Endpoint or Region must be set.")
+		return errors.New("config Endpoint or Region must be set")
 	}
 	return nil
 }
@@ -227,7 +227,7 @@ func (c *Client) GetObject(ctx context.Context, bucketName, objectName string) (
 func (c *Client) endpoint(elem ...string) string {
 	endpoint := c.config.Endpoint
 	// Strip trailing slashes.
-	for len(endpoint) > 0 && endpoint[len(endpoint)-1] == '/' {
+	for endpoint != "" && endpoint[len(endpoint)-1] == '/' {
 		endpoint = endpoint[0 : len(endpoint)-1]
 	}
 	// Build endpoint URL if no config.Endpoint is set.
