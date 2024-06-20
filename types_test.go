@@ -71,7 +71,6 @@ const listObjectsResponse = `
 `
 
 func TestObjectsXML(t *testing.T) {
-	t.Skip()
 	var info ListObjectsResponse
 	if err := xml.Unmarshal([]byte(listObjectsResponse), &info); err != nil {
 		t.Fatalf("failed to unmarshal: %s", err)
