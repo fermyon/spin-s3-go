@@ -82,6 +82,7 @@ func init() {
 			return
 		}
 
+		fmt.Println("-- File contents --")
 		b, err := io.ReadAll(contents)
 		if err != nil {
 			fmt.Println(err)

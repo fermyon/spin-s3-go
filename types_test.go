@@ -5,8 +5,11 @@ import (
 	"testing"
 )
 
+// These tests don't assert anything yet. They were written for development
+// purposes.
+
 const listBucketsResponse = `
-<ListAllMyBucketsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+<ListAllMyBucketsResult>
   <Owner>
     <DisplayName>webfile</DisplayName>
     <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>
@@ -28,8 +31,22 @@ const listBucketsResponse = `
 </ListAllMyBucketsResult>
 `
 
+func TestBucketsXML(t *testing.T) {
+	var info ListBucketsResponse
+	if err := xml.Unmarshal([]byte(listBucketsResponse), &info); err != nil {
+		t.Fatalf("failed to unmarshal: %s", err)
+	}
+	t.Logf("%#v", info)
+
+	out, err := xml.MarshalIndent(&info, "  ", "    ")
+	if err != nil {
+		t.Fatalf("failed to unmarshal: %s", err)
+	}
+	t.Log(string(out))
+}
+
 const listObjectsResponse = `
-<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+<ListBucketResult>
   <IsTruncated>true</IsTruncated>
   <Marker />
   <Name>mybucket</Name>
@@ -53,30 +70,13 @@ const listObjectsResponse = `
 </ListBucketResult>
 `
 
-func TestXML(t *testing.T) {
-	t.Skip()
-	var info ListBucketsResponse
-	if err := xml.Unmarshal([]byte(listBucketsResponse), &info); err != nil {
-		t.Fatalf("failed to unmarshal: %s", err)
-	}
-	t.Logf("%#v", info)
-
-	out, err := xml.MarshalIndent(&info, "  ", "    ")
-	if err != nil {
-		t.Fatalf("failed to unmarshal: %s", err)
-	}
-	t.Log(string(out))
-}
-
-func TestBucketsXML(t *testing.T) {
+func TestObjectsXML(t *testing.T) {
 	t.Skip()
 	var info ListObjectsResponse
-	if err := xml.Unmarshal([]byte(listBucketsResponse), &info); err != nil {
+	if err := xml.Unmarshal([]byte(listObjectsResponse), &info); err != nil {
 		t.Fatalf("failed to unmarshal: %s", err)
 	}
 	t.Logf("%#v", info)
-
-	// info.CommonPrefixes = []CommonPrefix{{Prefix: "hello"}}
 
 	out, err := xml.MarshalIndent(&info, "  ", "    ")
 	if err != nil {
