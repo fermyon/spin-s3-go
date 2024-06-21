@@ -47,9 +47,6 @@ func (c *Config) validate() error {
 type Client struct {
 	config     Config
 	HTTPClient *http.Client
-
-	// trace is only for dev. It needs to be removed to work within a spin app.
-	trace bool
 }
 
 // New creates a new Client.
@@ -58,9 +55,7 @@ func New(config Config) (*Client, error) {
 		return nil, err
 	}
 	client := &Client{
-		config: config,
-
-		// TODO: replace with spinhttp client.
+		config:     config,
 		HTTPClient: spinhttp.NewClient(),
 		// HTTPClient: http.DefaultClient,
 	}
@@ -89,19 +84,7 @@ func (c *Client) newRequest(ctx context.Context, method, url string, body []byte
 }
 
 // do is a temporary wrapper for making the request.
-// This will need to be removed before running in a spin app because tinygo
-// removed httputil. Just to be annoying.
 func (c *Client) do(req *http.Request) (*http.Response, error) {
-	// if c.trace {
-	// 	b, err := httputil.DumpRequest(req, true)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	fmt.Println("-- REQUEST -------------------")
-	// 	fmt.Println(string(b))
-	// 	fmt.Println("-- END REQUEST ---------------")
-	// }
-
 	// There is a bug in tinygo where the Transport is not being called. As
 	// a work around we need to call spinhttp.Send directly
 	// resp, err := c.HTTPClient.Do(req)
@@ -109,16 +92,6 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-
-	// if c.trace {
-	// 	b, err := httputil.DumpResponse(resp, true)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	fmt.Println("-- RESPONSE ------------------")
-	// 	fmt.Println(string(b))
-	// 	fmt.Println("-- END RESPONSE --------------")
-	// }
 
 	// Only checking for a status of 200 feels too specific.
 	if resp.StatusCode != http.StatusOK {
