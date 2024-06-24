@@ -40,7 +40,7 @@ type CommonPrefix struct {
 type ObjectInfo struct {
 	Key          string
 	ETag         string
-	FileSize     int
+	Size         int
 	LastModified time.Time
 	StorageClass string
 	Owner        Owner
