@@ -13,8 +13,10 @@ component = "spin-s3-example"
 [component.spin-s3-example]
 source = "main.wasm"
 allowed_outbound_hosts = [
+  "http://*.s3.localhost.localstack.cloud:4566",
   "http://s3.localhost.localstack.cloud:4566",
-  "https://s3.us-east-1.amazonaws.com",
+  "https://s3.{{s3_region}}.amazonaws.com",
+  "https://*.s3.{{s3_region}}.amazonaws.com",
 ]
 
 [variables]

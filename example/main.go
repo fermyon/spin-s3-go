@@ -21,8 +21,6 @@ func init() {
 		}
 
 		cfg := s3.Config{
-			// Setting config.Endpoint allows us to provide an endpoint other than
-			// AWS. It is not required when using AWS S3.
 			Endpoint: endpoint,
 
 			// The following fields are for your AWS credentials.
@@ -66,7 +64,7 @@ func init() {
 			return
 		}
 
-		fmt.Println("-- Getting object")
+		fmt.Printf("-- Getting object: %q\n", objectName)
 		contents, err := s3Client.GetObject(ctx, bucketName, objectName)
 		if err != nil {
 			fmt.Println(err)
