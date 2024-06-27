@@ -4,11 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"path"
+	"net/url"
 	"time"
 
 	spinhttp "github.com/fermyon/spin-go-sdk/http"
@@ -30,41 +29,50 @@ type Config struct {
 	SessionToken string
 	// S3 region
 	Region string
-
-	// Endpoint is an optional override URL to the s3 service.
+	// Endpoint is URL to the s3 service.
 	Endpoint string
-}
-
-// validate checks for valid config options.
-func (c *Config) validate() error {
-	if c.Endpoint == "" && c.Region == "" {
-		return errors.New("config Endpoint or Region must be set")
-	}
-	return nil
 }
 
 // Client provides an interface for interacting with the S3 API.
 type Client struct {
-	config     Config
-	HTTPClient *http.Client
+	config      Config
+	endpointURL string
 }
 
 // New creates a new Client.
 func New(config Config) (*Client, error) {
-	if err := config.validate(); err != nil {
-		return nil, err
+	u, err := url.Parse(config.Endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse endpoint: %w", err)
 	}
 	client := &Client{
-		config:     config,
-		HTTPClient: spinhttp.NewClient(),
-		// HTTPClient: http.DefaultClient,
+		config:      config,
+		endpointURL: u.String(),
 	}
 
 	return client, nil
 }
 
-func (c *Client) newRequest(ctx context.Context, method, url string, body []byte) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(body))
+// buildEndpoint returns a endpoint
+func (c *Client) buildEndpoint(bucketName, path string) (string, error) {
+	u, err := url.Parse(c.endpointURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse endpoint: %w", err)
+	}
+	if bucketName != "" {
+		u.Host = bucketName + "." + u.Host
+	}
+	return u.JoinPath(path).String(), nil
+
+}
+
+func (c *Client) newRequest(ctx context.Context, method, bucketName, path string, body []byte) (*http.Request, error) {
+	endpointURL, err := c.buildEndpoint(bucketName, path)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, endpointURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -83,11 +91,8 @@ func (c *Client) newRequest(ctx context.Context, method, url string, body []byte
 	return req, nil
 }
 
-// do is a temporary wrapper for making the request.
+// do sends the request and handles any error response.
 func (c *Client) do(req *http.Request) (*http.Response, error) {
-	// There is a bug in tinygo where the Transport is not being called. As
-	// a work around we need to call spinhttp.Send directly
-	// resp, err := c.HTTPClient.Do(req)
 	resp, err := spinhttp.Send(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
@@ -105,25 +110,19 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 }
 
 func (c *Client) CreateBucket(ctx context.Context, name string) error {
-	req, err := c.newRequest(ctx, http.MethodPut, c.endpoint(name), nil)
+	req, err := c.newRequest(ctx, http.MethodPut, "", name, nil)
 	if err != nil {
 		return err
 	}
 
 	resp, err := c.do(req)
-	if err != nil {
-		return err
-	}
-
-	// TODO: Do I need to do anything with the response here?
-	_ = resp
-
-	return nil
+	resp.Body.Close()
+	return err
 }
 
 // ListBuckets returns a list of buckets.
 func (c *Client) ListBuckets(ctx context.Context) (*ListBucketsResponse, error) {
-	req, err := c.newRequest(ctx, http.MethodGet, c.endpoint(), nil)
+	req, err := c.newRequest(ctx, http.MethodGet, "", "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +143,7 @@ func (c *Client) ListBuckets(ctx context.Context) (*ListBucketsResponse, error) 
 
 // ListObjects returns a list of objects within a specified bucket.
 func (c *Client) ListObjects(ctx context.Context, bucketName string) (*ListObjectsResponse, error) {
-	req, err := c.newRequest(ctx, http.MethodGet, c.endpoint(bucketName), nil)
+	req, err := c.newRequest(ctx, http.MethodGet, bucketName, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +164,7 @@ func (c *Client) ListObjects(ctx context.Context, bucketName string) (*ListObjec
 
 // PutObject uploads an object to the specified bucket.
 func (c *Client) PutObject(ctx context.Context, bucketName, objectName string, data []byte) error {
-	req, err := c.newRequest(ctx, http.MethodPut, c.endpoint(bucketName, objectName), data)
+	req, err := c.newRequest(ctx, http.MethodPut, bucketName, objectName, data)
 	if err != nil {
 		return err
 	}
@@ -182,7 +181,7 @@ func (c *Client) PutObject(ctx context.Context, bucketName, objectName string, d
 // GetObject fetches an object.
 // TODO: Create a struct to contain meta? etag,last modified, etc
 func (c *Client) GetObject(ctx context.Context, bucketName, objectName string) (io.ReadCloser, error) {
-	req, err := c.newRequest(ctx, http.MethodGet, c.endpoint(bucketName, objectName), nil)
+	req, err := c.newRequest(ctx, http.MethodGet, bucketName, objectName, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -195,17 +194,4 @@ func (c *Client) GetObject(ctx context.Context, bucketName, objectName string) (
 	// defer resp.Body.Close()
 
 	return resp.Body, nil
-}
-
-func (c *Client) endpoint(elem ...string) string {
-	endpoint := c.config.Endpoint
-	// Strip trailing slashes.
-	for endpoint != "" && endpoint[len(endpoint)-1] == '/' {
-		endpoint = endpoint[0 : len(endpoint)-1]
-	}
-	// Build endpoint URL if no config.Endpoint is set.
-	if endpoint == "" && c.config.Region != "" {
-		endpoint = fmt.Sprintf("https://s3.%s.amazonaws.com", c.config.Region)
-	}
-	return endpoint + "/" + path.Join(elem...)
 }
