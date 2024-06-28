@@ -15,23 +15,18 @@ source = "main.wasm"
 allowed_outbound_hosts = [
   "http://*.s3.localhost.localstack.cloud:4566",
   "http://s3.localhost.localstack.cloud:4566",
-  "https://s3.{{s3_region}}.amazonaws.com",
-  "https://*.s3.{{s3_region}}.amazonaws.com",
+  "https://*.amazonaws.com",
 ]
 
 [variables]
-s3_access_key_id = { default = "" }
-s3_secret_access_key = { default = "" }
-s3_session_token = { default = "" }
-s3_region = { default = "us-east-1" }
-s3_endpoint = { default = "" }
+aws_access_key_id = { required = true }
+aws_secret_access_key = { required = true }
+aws_session_token = { required = true }
 
 [component.spin-s3-example.variables]
-s3_access_key_id = "{{s3_access_key_id}}"
-s3_secret_access_key = "{{s3_secret_access_key}}"
-s3_session_token = "{{s3_session_token}}"
-s3_region = "{{s3_region}}"
-s3_endpoint = "{{s3_endpoint}}"
+aws_access_key_id = "{{aws_access_key_id}}"
+aws_secret_access_key = "{{aws_secret_access_key}}"
+aws_session_token = "{{aws_session_token}}"
 
 [component.spin-s3-example.build]
 command = "tinygo build -target=wasi -gc=leaking -o main.wasm main.go"

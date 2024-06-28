@@ -1,4 +1,4 @@
-package s3
+package aws
 
 import (
 	"testing"
@@ -29,9 +29,9 @@ func TestClientBuildEndpoint(t *testing.T) {
 	}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Client{
+			c := &S3Client{CommonClient{
 				endpointURL: tt.endpointURL,
-			}
+			}}
 			got, err := c.buildEndpoint(tt.bucketName, tt.path)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
