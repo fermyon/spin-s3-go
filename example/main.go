@@ -3,83 +3,109 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 
 	spinhttp "github.com/fermyon/spin-go-sdk/http"
 	"github.com/fermyon/spin-go-sdk/variables"
-
-	s3 "github.com/fermyon/spin-s3-go"
+	aws "github.com/fermyon/spin-s3-go"
 )
 
 func init() {
 	spinhttp.Handle(func(w http.ResponseWriter, r *http.Request) {
-		endpoint, err := variables.Get("s3_endpoint")
+		accessKeyId, err := variables.Get("aws_access_key_id")
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
 
-		cfg := s3.Config{
-			Endpoint: endpoint,
-
-			// The following fields are for your AWS credentials.
-			// AccessKey:    "",
-			// SecretKey:    "",
-			// SessionToken: "",
-			// Region:       "",
-		}
-
-		s3Client, err := s3.New(cfg)
+		secretAccessKey, err := variables.Get("aws_secret_access_key")
 		if err != nil {
 			fmt.Println(err)
 			return
+		}
+
+		sessionToken, err := variables.Get("aws_session_token")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		// Required header values
+		endpoint := r.Header.Get("x-aws-endpoint")
+		region := r.Header.Get("x-aws-region")
+		service := r.Header.Get("x-aws-service")
+
+		cfg := aws.Config{
+			AccessKeyId:     accessKeyId,
+			SecretAccessKey: secretAccessKey,
+			SessionToken:    sessionToken,
+			Endpoint:        endpoint,
+			Region:          region,
+			Service:         service,
 		}
 
 		ctx := context.Background()
 
-		const bucketName = "spin-s3-examples"
+		if service == "s3" {
+			// S3 specific headers
+			bucketName := r.Header.Get("x-s3-bucket")
 
-		fmt.Printf("-- Create bucket %q\n", bucketName)
-		if err := s3Client.CreateBucket(ctx, bucketName); err != nil {
-			fmt.Println(err)
-			return
+			s3Client, err := aws.NewS3(cfg)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			err = s3Client.PutObject(ctx, bucketName, "hello.txt", []byte("Hello, S3!"))
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			resp, err := s3Client.GetObject(ctx, bucketName, "hello.txt")
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			fmt.Println(resp)
+		} else if service == "sqs" {
+			queueUrl := r.Header.Get("x-sqs-queue-url")
+			if queueUrl == "" {
+				fmt.Println("If making an SQS request, you must include the 'x-sqs-queue-url' header.")
+			}
+
+			sqsClient, err := aws.NewSQS(cfg)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			sendParams := aws.SqsSendMessageParams{
+				QueueUrl:    queueUrl,
+				MessageBody: "Hello, SQS!",
+			}
+
+			sendResp, err := sqsClient.SendMessage(ctx, sendParams)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			fmt.Println(sendResp)
+
+			recParams := aws.SqsReceiveMessageParams{
+				QueueUrl: queueUrl,
+			}
+
+			recResp, err := sqsClient.ReceiveMessage(ctx, recParams)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			fmt.Println(recResp)
 		}
-
-		fmt.Println("-- List all buckets")
-		resp, err := s3Client.ListBuckets(ctx)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		for _, bucket := range resp.Buckets {
-			fmt.Println(bucket)
-		}
-
-		const objectName = "hello.txt"
-
-		fmt.Printf("-- Creating object %q\n", objectName)
-		if err := s3Client.PutObject(ctx, bucketName, objectName, []byte("Hello S3!")); err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		fmt.Printf("-- Getting object: %q\n", objectName)
-		contents, err := s3Client.GetObject(ctx, bucketName, objectName)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		fmt.Println("Object contents:")
-		b, err := io.ReadAll(contents)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		fmt.Println(string(b))
-
-		fmt.Println("Success")
 	})
 }
 

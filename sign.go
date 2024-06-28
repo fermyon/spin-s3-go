@@ -1,4 +1,4 @@
-package s3
+package aws
 
 import (
 	"crypto/hmac"
@@ -6,53 +6,99 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
 
-const signedHeaders = "host;x-amz-content-sha256;x-amz-date;x-amz-security-token"
+type AwsDate struct {
+	time time.Time
+}
 
-func getAuthorizationHeader(req *http.Request, payloadHash, region, accessKey, sessionToken, secretKey string, now time.Time) string {
-	canonicalRequest := getCanonicalRequest(req, payloadHash, sessionToken, now)
-	stringToSign := getStringToSign(canonicalRequest, region, now)
-	signature := getSignature(stringToSign, region, secretKey, now)
-	credential := strings.Join([]string{
-		accessKey, now.Format(dateFormat), region, "s3", "aws4_request",
-	}, "/")
+func (d *AwsDate) getDate() string {
+	return d.time.UTC().Format("20060102")
+}
+
+func (d *AwsDate) getTime() string {
+	return d.time.UTC().Format("20060102T150405Z")
+}
+
+type CommonClient struct {
+	config      Config
+	endpointURL string
+}
+
+func GetAuthorizationHeader(c *CommonClient, req *http.Request, date *AwsDate, payloadHash string) string {
+	canonicalHeaders, signedHeaders := getHeaderStrings(req.Header)
+	canonicalRequest := getCanonicalRequest(req, date, signedHeaders, canonicalHeaders, payloadHash)
+	stringToSign := getStringToSign(&c.config, date, canonicalRequest)
+	signature := getSignature(&c.config, date, stringToSign)
+	credential := strings.Join([]string{c.config.AccessKeyId, date.getDate(), c.config.Region, c.config.Service, "aws4_request"}, "/")
+
 	return fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s, SignedHeaders=%s, Signature=%s",
 		credential, signedHeaders, signature)
 }
 
-// https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html#request-string
-func getStringToSign(canonicalRequest, region string, now time.Time) string {
-	// Create the hash of the canonical request
-	canonicalRequestHash := sha256.New()
-	canonicalRequestHash.Write([]byte(canonicalRequest))
-	canonicalRequestHashString := hex.EncodeToString(canonicalRequestHash.Sum(nil))
+func getHeaderStrings(headers http.Header) (string, string) {
+	// Formatted as header_key_1:header_value_1\nheader_key_2:header_value_2\n
+	canonicalHeaders := ""
+	// Formatted as header_key_1;header_key_2
+	signedHeaders := ""
+	headerKeys := make([]string, 0, len(headers))
+	for key := range headers {
+		headerKeys = append(headerKeys, key)
+	}
+	// Header names must appear in alphabetical order
+	sort.Strings(headerKeys)
 
-	// Create the string to sign
-	return fmt.Sprintf("AWS4-HMAC-SHA256\n%s\n%s/%s/s3/aws4_request\n%s",
-		now.Format(timeFormat), now.Format(dateFormat), region, canonicalRequestHashString)
+	for _, key := range headerKeys {
+		// Each header name must use lowercase characters
+		lowerCaseKey := strings.ToLower(key)
+		canonicalHeaders += lowerCaseKey + ":" + headers.Get(key) + "\n"
+		if signedHeaders == "" {
+			signedHeaders += lowerCaseKey
+		} else {
+			signedHeaders += ";" + lowerCaseKey
+		}
+	}
+
+	return canonicalHeaders, signedHeaders
+}
+
+// https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html#request-string
+func getStringToSign(config *Config, date *AwsDate, canonicalRequest string) string {
+	scope := strings.Join([]string{date.getDate(), config.Region, config.Service, "aws4_request"}, "/")
+	return strings.Join([]string{"AWS4-HMAC-SHA256", date.getTime(), scope, GetPayloadHash([]byte(canonicalRequest))}, "\n")
 }
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html#signing-key
-func getSignature(stringToSign, region, secretKey string, now time.Time) string {
-	dateKey := hmacSHA256([]byte("AWS4"+secretKey), []byte(now.Format(dateFormat)))
-	regionKey := hmacSHA256(dateKey, []byte(region))
-	serviceKey := hmacSHA256(regionKey, []byte("s3"))
-	signingKey := hmacSHA256(serviceKey, []byte("aws4_request"))
+func getSignature(config *Config, date *AwsDate, stringToSign string) string {
+	sign := func(key []byte, data []byte) []byte {
+		hash := hmac.New(sha256.New, key)
+		hash.Write(data)
 
-	return hex.EncodeToString(hmacSHA256(signingKey, []byte(stringToSign)))
+		return hash.Sum(nil)
+	}
+
+	dateKey := sign([]byte("AWS4"+config.SecretAccessKey), []byte(date.getDate()))
+	regionKey := sign(dateKey, []byte(config.Region))
+	serviceKey := sign(regionKey, []byte(config.Service))
+	signingKey := sign(serviceKey, []byte("aws4_request"))
+
+	return hex.EncodeToString(sign(signingKey, []byte(stringToSign)))
 }
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html#canonical-request
-func getCanonicalRequest(req *http.Request, payloadHash, sessionToken string, now time.Time) string {
-	canonicalHeaders := fmt.Sprintf("host:%s\nx-amz-content-sha256:%s\nx-amz-date:%s\nx-amz-security-token:%s\n",
-		req.Host, payloadHash, now.Format(timeFormat), sessionToken)
+func getCanonicalRequest(req *http.Request, date *AwsDate, signedHeaders, canonicalHeaders, payloadHash string) string {
+	escapedUrl := req.URL.EscapedPath()
+	if !strings.HasPrefix(escapedUrl, "/") {
+		// The path MUST start with a "/"
+		escapedUrl = "/" + escapedUrl
+	}
 
 	return strings.Join([]string{
 		req.Method,
-		req.URL.EscapedPath(),
+		escapedUrl,
 		req.URL.RawQuery,
 		canonicalHeaders,
 		signedHeaders,
@@ -60,13 +106,7 @@ func getCanonicalRequest(req *http.Request, payloadHash, sessionToken string, no
 	}, "\n")
 }
 
-func hmacSHA256(key, data []byte) []byte {
-	hash := hmac.New(sha256.New, key)
-	hash.Write(data)
-	return hash.Sum(nil)
-}
-
-func getPayloadHash(payload []byte) string {
+func GetPayloadHash(payload []byte) string {
 	hash := sha256.New()
 	hash.Write(payload)
 	return hex.EncodeToString(hash.Sum(nil))
