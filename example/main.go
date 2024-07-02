@@ -7,7 +7,10 @@ import (
 
 	spinhttp "github.com/fermyon/spin-go-sdk/http"
 	"github.com/fermyon/spin-go-sdk/variables"
-	aws "github.com/fermyon/spin-s3-go"
+
+	aws "github.com/fermyon/spin-aws-go"
+	s3 "github.com/fermyon/spin-aws-go/s3"
+	sqs "github.com/fermyon/spin-aws-go/sqs"
 )
 
 func init() {
@@ -50,7 +53,7 @@ func init() {
 			// S3 specific headers
 			bucketName := r.Header.Get("x-s3-bucket")
 
-			s3Client, err := aws.NewS3(cfg)
+			s3Client, err := s3.NewS3(cfg)
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -75,13 +78,13 @@ func init() {
 				fmt.Println("If making an SQS request, you must include the 'x-sqs-queue-url' header.")
 			}
 
-			sqsClient, err := aws.NewSQS(cfg)
+			sqsClient, err := sqs.NewSQS(cfg)
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
 
-			sendParams := aws.SqsSendMessageParams{
+			sendParams := sqs.SqsSendMessageParams{
 				QueueUrl:    queueUrl,
 				MessageBody: "Hello, SQS!",
 			}
@@ -94,7 +97,7 @@ func init() {
 
 			fmt.Println(sendResp)
 
-			recParams := aws.SqsReceiveMessageParams{
+			recParams := sqs.SqsReceiveMessageParams{
 				QueueUrl: queueUrl,
 			}
 
