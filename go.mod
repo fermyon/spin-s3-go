@@ -1,4 +1,4 @@
-module github.com/fermyon/spin-s3-go
+module github.com/fermyon/spin-aws-go
 
 go 1.22.3
 
