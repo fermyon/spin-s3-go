@@ -23,13 +23,14 @@ type S3Client struct {
 
 // New creates a new Client.
 func NewS3(config aws.Config) (*S3Client, error) {
-	u, err := url.Parse(config.Endpoint)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse endpoint: %w", err)
-	}
+	// u, err := url.Parse(config.Endpoint)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to parse endpoint: %w", err)
+	// }
+	u := "https://" + config.Service + "." + config.Region + ".amazonaws.com"
 	client := &S3Client{
 		config:      config,
-		endpointURL: u.String(),
+		endpointURL: u,
 	}
 
 	return client, nil
@@ -45,7 +46,6 @@ func (c *S3Client) buildEndpoint(bucketName, path string) (string, error) {
 		u.Host = bucketName + "." + u.Host
 	}
 	return u.JoinPath(path).String(), nil
-
 }
 
 func (c *S3Client) newRequest(ctx context.Context, method, bucketName, path string, body []byte) (*http.Request, error) {
