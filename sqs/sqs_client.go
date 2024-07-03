@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -24,14 +23,14 @@ type SQSClient struct {
 
 // New creates a new Client.
 func NewSQS(config aws.Config) (*SQSClient, error) {
-	u, err := url.Parse(config.Endpoint)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse endpoint: %w", err)
-	}
-
+	// u, err := url.Parse(config.Endpoint)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to parse endpoint: %w", err)
+	// }
+	u := "https://" + config.Service + "." + config.Region + ".amazonaws.com"
 	client := &SQSClient{
 		config:      config,
-		endpointURL: u.String(),
+		endpointURL: u,
 	}
 
 	return client, nil
@@ -49,7 +48,7 @@ func (c *SQSClient) newSqsRequest(ctx context.Context, method, url, action strin
 	// Set the AWS authentication headers
 	payloadHash := aws.GetPayloadHash(body)
 	// Removing the protocol:// from the host header
-	req.Header.Set("host", strings.Split(c.config.Endpoint, "//")[1])
+	req.Header.Set("host", strings.Split(c.endpointURL, "//")[1])
 	req.Header.Set("content-type", "application/x-amz-json-1.0")
 	req.Header.Set("content-length", fmt.Sprintf("%d", len(body)))
 	req.Header.Set("connection", "Keep-Alive")
@@ -88,7 +87,7 @@ func (c *SQSClient) SendMessage(ctx context.Context, params SqsSendMessageParams
 		return SqsSendMessageResponse{}, err
 	}
 
-	req, err := c.newSqsRequest(ctx, http.MethodPost, c.config.Endpoint, "AmazonSQS.SendMessage", messageBytes)
+	req, err := c.newSqsRequest(ctx, http.MethodPost, c.endpointURL, "AmazonSQS.SendMessage", messageBytes)
 	if err != nil {
 		return SqsSendMessageResponse{}, err
 	}
@@ -120,7 +119,7 @@ func (c *SQSClient) ReceiveMessage(ctx context.Context, params SqsReceiveMessage
 		return SqsReceiveMessageResponse{}, nil
 	}
 
-	req, err := c.newSqsRequest(ctx, http.MethodPost, c.config.Endpoint, "AmazonSQS.ReceiveMessage", paramJsonBytes)
+	req, err := c.newSqsRequest(ctx, http.MethodPost, c.endpointURL, "AmazonSQS.ReceiveMessage", paramJsonBytes)
 	if err != nil {
 		return SqsReceiveMessageResponse{}, err
 	}
@@ -152,7 +151,7 @@ func (c *SQSClient) DeleteMessage(ctx context.Context, params SqsDeleteMessagePa
 		return err
 	}
 
-	req, err := c.newSqsRequest(ctx, http.MethodPost, c.config.Endpoint, "AmazonSQS.DeleteMessage", messageBytes)
+	req, err := c.newSqsRequest(ctx, http.MethodPost, c.endpointURL, "AmazonSQS.DeleteMessage", messageBytes)
 	if err != nil {
 		return err
 	}

@@ -34,7 +34,7 @@ func init() {
 		}
 
 		// Required header values
-		endpoint := r.Header.Get("x-aws-endpoint")
+		// endpoint := r.Header.Get("x-aws-endpoint")
 		region := r.Header.Get("x-aws-region")
 		service := r.Header.Get("x-aws-service")
 
@@ -42,9 +42,9 @@ func init() {
 			AccessKeyId:     accessKeyId,
 			SecretAccessKey: secretAccessKey,
 			SessionToken:    sessionToken,
-			Endpoint:        endpoint,
-			Region:          region,
-			Service:         service,
+			// Endpoint:        endpoint,
+			Region:  region,
+			Service: service,
 		}
 
 		ctx := context.Background()

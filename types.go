@@ -18,7 +18,7 @@ type Config struct {
 	// AWS Service
 	Service string
 	// Endpoint is an optional override URL to the s3 service.
-	Endpoint string
+	// Endpoint string
 }
 
 type AwsDate struct {
