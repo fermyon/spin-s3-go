@@ -50,7 +50,7 @@ func getHeaderStrings(headers http.Header) (string, string) {
 // https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html#request-string
 func getStringToSign(config *Config, date *AwsDate, canonicalRequest string) string {
 	scope := strings.Join([]string{date.GetDate(), config.Region, config.Service, "aws4_request"}, "/")
-	return strings.Join([]string{"AWS4-HMAC-SHA256", date.GetTime(), scope, GetPayloadHash([]byte(canonicalRequest))}, "\n")
+	return strings.Join([]string{"AWS4-HMAC-SHA256", date.GetTime(), scope, getPayloadHash([]byte(canonicalRequest))}, "\n")
 }
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html#signing-key
@@ -88,7 +88,7 @@ func getCanonicalRequest(req *http.Request, signedHeaders, canonicalHeaders, pay
 	}, "\n")
 }
 
-func GetPayloadHash(payload []byte) string {
+func getPayloadHash(payload []byte) string {
 	hash := sha256.New()
 	hash.Write(payload)
 	return hex.EncodeToString(hash.Sum(nil))

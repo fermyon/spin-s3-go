@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 
 	spinhttp "github.com/fermyon/spin-go-sdk/http"
@@ -33,27 +34,45 @@ func init() {
 			return
 		}
 
-		// Required header values
-		// endpoint := r.Header.Get("x-aws-endpoint")
-		region := r.Header.Get("x-aws-region")
-		service := r.Header.Get("x-aws-service")
+		region, err := variables.Get("aws_region")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		endpoint, err := variables.Get("aws_endpoint")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		service, err := variables.Get("aws_service")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 
 		cfg := aws.Config{
 			AccessKeyId:     accessKeyId,
 			SecretAccessKey: secretAccessKey,
 			SessionToken:    sessionToken,
-			// Endpoint:        endpoint,
-			Region:  region,
-			Service: service,
+			Endpoint:        endpoint,
+			Region:          region,
+			Service:         service,
 		}
 
 		ctx := context.Background()
 
 		if service == "s3" {
-			// S3 specific headers
-			bucketName := r.Header.Get("x-s3-bucket")
+			bucketName := "test-bucket"
 
 			s3Client, err := s3.NewS3(cfg)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			err = s3Client.CreateBucket(ctx, bucketName)
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -70,13 +89,16 @@ func init() {
 				fmt.Println(err)
 				return
 			}
+			defer resp.Close()
 
-			fmt.Println(resp)
-		} else if service == "sqs" {
-			queueUrl := r.Header.Get("x-sqs-queue-url")
-			if queueUrl == "" {
-				fmt.Println("If making an SQS request, you must include the 'x-sqs-queue-url' header.")
+			bytes, err := io.ReadAll(resp)
+			if err != nil {
+				fmt.Println(err)
+				return
 			}
+
+			fmt.Println(string(bytes))
+		} else if service == "sqs" {
 
 			sqsClient, err := sqs.NewSQS(cfg)
 			if err != nil {
@@ -84,21 +106,31 @@ func init() {
 				return
 			}
 
-			sendParams := sqs.SqsSendMessageParams{
-				QueueUrl:    queueUrl,
-				MessageBody: "Hello, SQS!",
+			createParams := sqs.CreateQueueParams{
+				QueueName: "test-queue",
 			}
 
-			sendResp, err := sqsClient.SendMessage(ctx, sendParams)
+			createResp, err := sqsClient.CreateQueue(ctx, createParams)
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
 
-			fmt.Println(sendResp)
+			endpoint = createResp.QueueURL
 
-			recParams := sqs.SqsReceiveMessageParams{
-				QueueUrl: queueUrl,
+			sendParams := sqs.SendMessageParams{
+				QueueURL:    endpoint,
+				MessageBody: "Hello, SQS!",
+			}
+
+			_, err = sqsClient.SendMessage(ctx, sendParams)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			recParams := sqs.ReceiveMessageParams{
+				QueueURL: endpoint,
 			}
 
 			recResp, err := sqsClient.ReceiveMessage(ctx, recParams)
@@ -107,7 +139,7 @@ func init() {
 				return
 			}
 
-			fmt.Println(recResp)
+			fmt.Println(recResp.Messages[0].Body)
 		}
 	})
 }

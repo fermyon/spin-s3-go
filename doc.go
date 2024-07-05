@@ -1,2 +1,2 @@
-// Package s3 provides a SDK for S3 compatible APIs for Spin applications.
+// Package aws provides a SDK for AWS compatible APIs for Spin applications.
 package aws

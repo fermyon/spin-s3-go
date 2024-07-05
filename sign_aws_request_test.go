@@ -16,8 +16,12 @@ func TestGetAuthorizationHeader(t *testing.T) {
 	}
 
 	s3PutPayload := []byte("Hello, S3!")
-	s3PutReq, _ := http.NewRequest("PUT", "https://example-bucket.s3.us-west-2.amazonaws.com/test", bytes.NewReader(s3PutPayload))
-	s3PutPayloadHash := GetPayloadHash(s3PutPayload)
+	s3PutReq, err := http.NewRequest("PUT", "https://example-bucket.s3.us-west-2.amazonaws.com/test", bytes.NewReader(s3PutPayload))
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	s3PutPayloadHash := getPayloadHash(s3PutPayload)
 	s3PutConfig := Config{
 		AccessKeyId:     "accesskey",
 		SecretAccessKey: "secretaccesskey",
@@ -76,7 +80,7 @@ func TestGetPayloadHash(t *testing.T) {
 	}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := GetPayloadHash(tt.payload)
+			got := getPayloadHash(tt.payload)
 			if got != tt.want {
 				t.Errorf("got: %v, want %v", got, tt.want)
 			}

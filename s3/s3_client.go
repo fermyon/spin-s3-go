@@ -3,12 +3,13 @@ package s3
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	aws "github.com/fermyon/spin-aws-go"
@@ -16,28 +17,28 @@ import (
 )
 
 // Client provides an interface for interacting with the S3 API.
-type S3Client struct {
+type Client struct {
 	config      aws.Config
 	endpointURL string
 }
 
 // New creates a new Client.
-func NewS3(config aws.Config) (*S3Client, error) {
-	// u, err := url.Parse(config.Endpoint)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to parse endpoint: %w", err)
-	// }
-	u := "https://" + config.Service + "." + config.Region + ".amazonaws.com"
-	client := &S3Client{
+func NewS3(config aws.Config) (*Client, error) {
+	u, err := url.Parse(config.Endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse endpoint: %w", err)
+	}
+
+	client := &Client{
 		config:      config,
-		endpointURL: u,
+		endpointURL: u.String(),
 	}
 
 	return client, nil
 }
 
 // buildEndpoint returns an endpoint
-func (c *S3Client) buildEndpoint(bucketName, path string) (string, error) {
+func (c *Client) buildEndpoint(bucketName, path string) (string, error) {
 	u, err := url.Parse(c.endpointURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse endpoint: %w", err)
@@ -48,8 +49,13 @@ func (c *S3Client) buildEndpoint(bucketName, path string) (string, error) {
 	return u.JoinPath(path).String(), nil
 }
 
-func (c *S3Client) newRequest(ctx context.Context, method, bucketName, path string, body []byte) (*http.Request, error) {
+func (c *Client) newRequest(ctx context.Context, method, bucketName, path string, body []byte) (*http.Request, error) {
 	endpointURL, err := c.buildEndpoint(bucketName, path)
+	if err != nil {
+		return nil, err
+	}
+
+	u, err := url.Parse(endpointURL)
 	if err != nil {
 		return nil, err
 	}
@@ -63,9 +69,8 @@ func (c *S3Client) newRequest(ctx context.Context, method, bucketName, path stri
 	awsDate.Time = time.Now()
 
 	// Set the AWS authentication headers
-	payloadHash := aws.GetPayloadHash(body)
-	// Removing the 'https://' and '/uri-path' from the host header
-	req.Header.Set("host", strings.Split(endpointURL, "/")[2])
+	payloadHash := getPayloadHash(body)
+	req.Header.Set("host", u.Host)
 	req.Header.Set("content-length", fmt.Sprintf("%d", len(body)))
 	req.Header.Set("x-amz-content-sha256", payloadHash)
 	req.Header.Set("x-amz-date", awsDate.GetTime())
@@ -77,8 +82,14 @@ func (c *S3Client) newRequest(ctx context.Context, method, bucketName, path stri
 	return req, nil
 }
 
+func getPayloadHash(payload []byte) string {
+	hash := sha256.New()
+	hash.Write(payload)
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
 // do sends the request and handles any error response.
-func (c *S3Client) do(req *http.Request) (*http.Response, error) {
+func (c *Client) do(req *http.Request) (*http.Response, error) {
 	resp, err := spinhttp.Send(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
@@ -95,7 +106,7 @@ func (c *S3Client) do(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func (c *S3Client) CreateBucket(ctx context.Context, name string) error {
+func (c *Client) CreateBucket(ctx context.Context, name string) error {
 	req, err := c.newRequest(ctx, http.MethodPut, "", name, nil)
 	if err != nil {
 		return err
@@ -107,7 +118,7 @@ func (c *S3Client) CreateBucket(ctx context.Context, name string) error {
 }
 
 // ListBuckets returns a list of buckets.
-func (c *S3Client) ListBuckets(ctx context.Context) (*ListBucketsResponse, error) {
+func (c *Client) ListBuckets(ctx context.Context) (*ListBucketsResponse, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, "", "", nil)
 	if err != nil {
 		return nil, err
@@ -128,7 +139,7 @@ func (c *S3Client) ListBuckets(ctx context.Context) (*ListBucketsResponse, error
 }
 
 // ListObjects returns a list of objects within a specified bucket.
-func (c *S3Client) ListObjects(ctx context.Context, bucketName string) (*ListObjectsResponse, error) {
+func (c *Client) ListObjects(ctx context.Context, bucketName string) (*ListObjectsResponse, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, bucketName, "", nil)
 	if err != nil {
 		return nil, err
@@ -149,7 +160,7 @@ func (c *S3Client) ListObjects(ctx context.Context, bucketName string) (*ListObj
 }
 
 // PutObject uploads an object to the specified bucket.
-func (c *S3Client) PutObject(ctx context.Context, bucketName, objectName string, data []byte) error {
+func (c *Client) PutObject(ctx context.Context, bucketName, objectName string, data []byte) error {
 	req, err := c.newRequest(ctx, http.MethodPut, bucketName, objectName, data)
 	if err != nil {
 		return err
@@ -166,7 +177,7 @@ func (c *S3Client) PutObject(ctx context.Context, bucketName, objectName string,
 
 // GetObject fetches an object from the specified bucket.
 // TODO: Create a struct to contain meta? etag,last modified, etc
-func (c *S3Client) GetObject(ctx context.Context, bucketName, objectName string) (io.ReadCloser, error) {
+func (c *Client) GetObject(ctx context.Context, bucketName, objectName string) (io.ReadCloser, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, bucketName, objectName, nil)
 	if err != nil {
 		return nil, err
@@ -183,7 +194,7 @@ func (c *S3Client) GetObject(ctx context.Context, bucketName, objectName string)
 }
 
 // DeleteObject deletes an object from the specified bucket.
-func (c *S3Client) DeleteObject(ctx context.Context, bucketName, objectName string) error {
+func (c *Client) DeleteObject(ctx context.Context, bucketName, objectName string) error {
 	req, err := c.newRequest(ctx, http.MethodDelete, bucketName, objectName, nil)
 	if err != nil {
 		return err

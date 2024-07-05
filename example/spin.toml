@@ -1,33 +1,38 @@
 spin_manifest_version = 2
 
 [application]
-name = "spin-s3-example"
+name = "spin-aws-example"
 version = "0.1.0"
 authors = ["Adam Reese <adam@reese.io>"]
-description = "Example Spin application using S3 client."
+description = "Example Spin application using AWS client."
 
 [[trigger.http]]
 route = "/..."
-component = "spin-s3-example"
+component = "spin-aws-example"
 
-[component.spin-s3-example]
+[component.spin-aws-example]
 source = "main.wasm"
 allowed_outbound_hosts = [
-  "http://*.s3.localhost.localstack.cloud:4566",
-  "http://s3.localhost.localstack.cloud:4566",
+  "http://*.localhost.localstack.cloud:4566",
   "https://*.amazonaws.com",
 ]
 
 [variables]
-aws_access_key_id = { required = true }
-aws_secret_access_key = { required = true }
-aws_session_token = { required = true }
+aws_access_key_id = { default = "" }
+aws_secret_access_key = { default = "" }
+aws_session_token = { default = "" }
+aws_region = { default = "us-east-1" }
+aws_endpoint = { required = true }
+aws_service = { required = true }
 
-[component.spin-s3-example.variables]
+[component.spin-aws-example.variables]
 aws_access_key_id = "{{aws_access_key_id}}"
 aws_secret_access_key = "{{aws_secret_access_key}}"
 aws_session_token = "{{aws_session_token}}"
+aws_region = "{{aws_region}}"
+aws_endpoint = "{{aws_endpoint}}"
+aws_service = "{{aws_service}}"
 
-[component.spin-s3-example.build]
+[component.spin-aws-example.build]
 command = "tinygo build -target=wasi -gc=leaking -o main.wasm main.go"
 watch = ["**/*.go", "go.mod"]

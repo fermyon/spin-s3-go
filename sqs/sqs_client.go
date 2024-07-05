@@ -3,12 +3,14 @@ package sqs
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
+	"net/url"
 	"time"
 
 	aws "github.com/fermyon/spin-aws-go"
@@ -16,28 +18,33 @@ import (
 )
 
 // Client provides an interface for interacting with the SQS API.
-type SQSClient struct {
+type Client struct {
 	config      aws.Config
 	endpointURL string
 }
 
 // New creates a new Client.
-func NewSQS(config aws.Config) (*SQSClient, error) {
-	// u, err := url.Parse(config.Endpoint)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to parse endpoint: %w", err)
-	// }
-	u := "https://" + config.Service + "." + config.Region + ".amazonaws.com"
-	client := &SQSClient{
+func NewSQS(config aws.Config) (*Client, error) {
+	u, err := url.Parse(config.Endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse endpoint: %w", err)
+	}
+
+	client := &Client{
 		config:      config,
-		endpointURL: u,
+		endpointURL: u.String(),
 	}
 
 	return client, nil
 }
 
-func (c *SQSClient) newSqsRequest(ctx context.Context, method, url, action string, body []byte) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(body))
+func (c *Client) newSqsRequest(ctx context.Context, method, action string, body []byte) (*http.Request, error) {
+	u, err := url.Parse(c.endpointURL)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -46,9 +53,8 @@ func (c *SQSClient) newSqsRequest(ctx context.Context, method, url, action strin
 	awsDate.Time = time.Now()
 
 	// Set the AWS authentication headers
-	payloadHash := aws.GetPayloadHash(body)
-	// Removing the protocol:// from the host header
-	req.Header.Set("host", strings.Split(c.endpointURL, "//")[1])
+	payloadHash := getPayloadHash(body)
+	req.Header.Set("host", u.Host)
 	req.Header.Set("content-type", "application/x-amz-json-1.0")
 	req.Header.Set("content-length", fmt.Sprintf("%d", len(body)))
 	req.Header.Set("connection", "Keep-Alive")
@@ -63,8 +69,14 @@ func (c *SQSClient) newSqsRequest(ctx context.Context, method, url, action strin
 	return req, nil
 }
 
+func getPayloadHash(payload []byte) string {
+	hash := sha256.New()
+	hash.Write(payload)
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
 // do sends the request and handles any error response.
-func (c *SQSClient) do(req *http.Request) (*http.Response, error) {
+func (c *Client) do(req *http.Request) (*http.Response, error) {
 	resp, err := spinhttp.Send(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
@@ -81,85 +93,115 @@ func (c *SQSClient) do(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func (c *SQSClient) SendMessage(ctx context.Context, params SqsSendMessageParams) (SqsSendMessageResponse, error) {
+func (c *Client) CreateQueue(ctx context.Context, params CreateQueueParams) (*CreateQueueResponse, error) {
 	messageBytes, err := json.Marshal(params)
 	if err != nil {
-		return SqsSendMessageResponse{}, err
+		return nil, fmt.Errorf("failed to encode message parameters: %w", err)
 	}
 
-	req, err := c.newSqsRequest(ctx, http.MethodPost, c.endpointURL, "AmazonSQS.SendMessage", messageBytes)
+	req, err := c.newSqsRequest(ctx, http.MethodPost, "AmazonSQS.CreateQueue", messageBytes)
 	if err != nil {
-		return SqsSendMessageResponse{}, err
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	resp, err := c.do(req)
 	if err != nil {
-		return SqsSendMessageResponse{}, err
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
+	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return SqsSendMessageResponse{}, err
+		return nil, fmt.Errorf("failed to read the response body: %w", err)
 	}
-	req.Body.Close()
 
-	var sqsResponse SqsSendMessageResponse
+	var sqsResponse CreateQueueResponse
 
 	err = json.Unmarshal(bodyBytes, &sqsResponse)
 	if err != nil {
-		return SqsSendMessageResponse{}, err
+		return nil, fmt.Errorf("failed to decode the response body %w", err)
 	}
 
-	return sqsResponse, nil
+	return &sqsResponse, nil
+
 }
 
-func (c *SQSClient) ReceiveMessage(ctx context.Context, params SqsReceiveMessageParams) (SqsReceiveMessageResponse, error) {
+func (c *Client) SendMessage(ctx context.Context, params SendMessageParams) (*SendMessageResponse, error) {
+	messageBytes, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode message parameters: %w", err)
+	}
+
+	req, err := c.newSqsRequest(ctx, http.MethodPost, "AmazonSQS.SendMessage", messageBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the response body: %w", err)
+	}
+
+	var sqsResponse SendMessageResponse
+
+	err = json.Unmarshal(bodyBytes, &sqsResponse)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode the response body %w", err)
+	}
+
+	return &sqsResponse, nil
+}
+
+func (c *Client) ReceiveMessage(ctx context.Context, params ReceiveMessageParams) (*ReceiveMessageResponse, error) {
 	paramJsonBytes, err := json.Marshal(params)
 	if err != nil {
-		return SqsReceiveMessageResponse{}, nil
+		return nil, fmt.Errorf("failed to encode message parameters: %w", err)
 	}
 
-	req, err := c.newSqsRequest(ctx, http.MethodPost, c.endpointURL, "AmazonSQS.ReceiveMessage", paramJsonBytes)
+	req, err := c.newSqsRequest(ctx, http.MethodPost, "AmazonSQS.ReceiveMessage", paramJsonBytes)
 	if err != nil {
-		return SqsReceiveMessageResponse{}, err
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	resp, err := c.do(req)
 	if err != nil {
-		return SqsReceiveMessageResponse{}, err
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
+	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return SqsReceiveMessageResponse{}, err
+		return nil, fmt.Errorf("failed to read the response body: %w", err)
 	}
-	req.Body.Close()
 
-	var sqsResponse SqsReceiveMessageResponse
+	var sqsResponse ReceiveMessageResponse
 
 	err = json.Unmarshal(bodyBytes, &sqsResponse)
 	if err != nil {
-		return SqsReceiveMessageResponse{}, err
+		return nil, fmt.Errorf("failed to decode the response body %w", err)
 	}
 
-	return sqsResponse, nil
+	return &sqsResponse, nil
 }
 
-func (c *SQSClient) DeleteMessage(ctx context.Context, params SqsDeleteMessageParams) error {
+func (c *Client) DeleteMessage(ctx context.Context, params DeleteMessageParams) error {
 	messageBytes, err := json.Marshal(params)
 	if err != nil {
 		return err
 	}
 
-	req, err := c.newSqsRequest(ctx, http.MethodPost, c.endpointURL, "AmazonSQS.DeleteMessage", messageBytes)
+	req, err := c.newSqsRequest(ctx, http.MethodPost, "AmazonSQS.DeleteMessage", messageBytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to encode message parameters: %w", err)
 	}
 
 	_, err = c.do(req)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return fmt.Errorf("failed to send SQS message: %w", err)
 }
