@@ -195,3 +195,19 @@ func (c *Client) GetObject(ctx context.Context, bucketName, objectName string) (
 
 	return resp.Body, nil
 }
+
+// DeleteObject deletes an object from the specified bucket.
+func (c *Client) DeleteObject(ctx context.Context, bucketName, objectName string) error {
+	req, err := c.newRequest(ctx, http.MethodDelete, bucketName, objectName, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	return nil
+}
