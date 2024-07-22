@@ -16,10 +16,11 @@ func init() {
 	spinhttp.Handle(func(w http.ResponseWriter, r *http.Request) {
 		endpoint, err := variables.Get("s3_endpoint")
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("failed to get s3_endpoint variable:", err)
 			return
 		}
 
+		// Create a Config with appropriate credentials.
 		cfg := s3.Config{
 			Endpoint: endpoint,
 
@@ -30,26 +31,26 @@ func init() {
 			// Region:       "",
 		}
 
+		// Create a New S3 client.
 		s3Client, err := s3.New(cfg)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("failed to create S3 client:", err)
 			return
 		}
 
-		ctx := context.Background()
-
 		const bucketName = "spin-s3-examples"
 
+		ctx := context.Background()
 		fmt.Printf("-- Create bucket %q\n", bucketName)
 		if err := s3Client.CreateBucket(ctx, bucketName); err != nil {
-			fmt.Println(err)
+			fmt.Printf("failed to create bucket %q: %s\n", bucketName, err)
 			return
 		}
 
 		fmt.Println("-- List all buckets")
 		resp, err := s3Client.ListBuckets(ctx)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("failed to list buckets:", err)
 			return
 		}
 		for _, bucket := range resp.Buckets {
@@ -60,26 +61,26 @@ func init() {
 
 		fmt.Printf("-- Creating object %q\n", objectName)
 		if err := s3Client.PutObject(ctx, bucketName, objectName, []byte("Hello S3!")); err != nil {
-			fmt.Println(err)
+			fmt.Printf("failed to put object %q: %s\n", objectName, err)
 			return
 		}
 
 		fmt.Printf("-- Getting object: %q\n", objectName)
 		contents, err := s3Client.GetObject(ctx, bucketName, objectName)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Printf("failed to get object %q: %s\n", objectName, err)
 			return
 		}
 
 		fmt.Println("Object contents:")
 		b, err := io.ReadAll(contents)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("failed to read response:", err)
 			return
 		}
 		fmt.Println(string(b))
 
-		fmt.Println("Success")
+		w.WriteHeader(http.StatusOK)
 	})
 }
 
