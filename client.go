@@ -53,7 +53,7 @@ func New(config Config) (*Client, error) {
 	return client, nil
 }
 
-// buildEndpoint returns a endpoint
+// buildEndpoint returns an endpoint
 func (c *Client) buildEndpoint(bucketName, path string) (string, error) {
 	u, err := url.Parse(c.endpointURL)
 	if err != nil {
