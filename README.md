@@ -2,7 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/fermyon/spin-s3-go.svg)](https://pkg.go.dev/github.com/fermyon/spin-s3-go)
 
-This package provides an SDK for S3 compatible APIs for [Spin](https://developer.fermyon.com/spin/v2/index) applications.
+This package provides an SDK for S3 compatible APIs for [Spin](https://spinframework.dev) applications.
 
 See [example](./example) for a working example of how to use the SDK in your application.
 
