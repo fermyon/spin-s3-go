@@ -6,10 +6,9 @@ import (
 	"io"
 	"net/http"
 
-	spinhttp "github.com/fermyon/spin-go-sdk/http"
-	"github.com/fermyon/spin-go-sdk/variables"
-
 	s3 "github.com/fermyon/spin-s3-go"
+	spinhttp "github.com/fermyon/spin/sdk/go/v2/http"
+	"github.com/fermyon/spin/sdk/go/v2/variables"
 )
 
 func init() {
@@ -83,5 +82,3 @@ func init() {
 		w.WriteHeader(http.StatusOK)
 	})
 }
-
-func main() {}
