@@ -34,5 +34,5 @@ s3_region = "{{s3_region}}"
 s3_endpoint = "{{s3_endpoint}}"
 
 [component.spin-s3-example.build]
-command = "tinygo build -target=wasi -gc=leaking -o main.wasm main.go"
+command = "tinygo build -target=wasip1 -gc=leaking -buildmode=c-shared -o main.wasm ."
 watch = ["**/*.go", "go.mod"]

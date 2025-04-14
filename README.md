@@ -6,6 +6,8 @@ This package provides an SDK for S3 compatible APIs for [Spin](https://spinframe
 
 See [example](./example) for a working example of how to use the SDK in your application.
 
+> This library is not compatible with go1.24 due to an upstream bug. See [issue #13](https://github.com/fermyon/spin-s3-go/issues/13).
+
 ## Usage
 
 Add the client to you Spin application
@@ -24,7 +26,7 @@ import (
 	"fmt"
 	"net/http"
 
-	spinhttp "github.com/fermyon/spin-go-sdk/http"
+	spinhttp "github.com/fermyon/spin/sdk/go/v2/http"
 
 	s3 "github.com/fermyon/spin-s3-go"
 )

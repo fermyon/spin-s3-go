@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"time"
 
-	spinhttp "github.com/fermyon/spin-go-sdk/http"
+	spinhttp "github.com/fermyon/spin/sdk/go/v2/http"
 )
 
 const (
