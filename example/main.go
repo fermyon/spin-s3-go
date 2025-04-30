@@ -6,9 +6,10 @@ import (
 	"io"
 	"net/http"
 
-	s3 "github.com/fermyon/spin-s3-go"
 	spinhttp "github.com/fermyon/spin/sdk/go/v2/http"
 	"github.com/fermyon/spin/sdk/go/v2/variables"
+
+	s3 "github.com/fermyon/spin-s3-go"
 )
 
 func init() {
