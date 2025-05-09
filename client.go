@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	spinhttp "github.com/fermyon/spin/sdk/go/v2/http"
 )
 
 const (
@@ -37,6 +35,7 @@ type Config struct {
 type Client struct {
 	config      Config
 	endpointURL string
+	httpclient  *http.Client
 }
 
 // New creates a new Client.
@@ -49,8 +48,12 @@ func New(config Config) (*Client, error) {
 		config:      config,
 		endpointURL: u.String(),
 	}
-
 	return client, nil
+}
+
+// WithHTTPClient configures the client to override the default http.Client.
+func (c *Client) WithHTTPClient(httpclient *http.Client) {
+	c.httpclient = httpclient
 }
 
 // buildEndpoint returns an endpoint
@@ -63,7 +66,6 @@ func (c *Client) buildEndpoint(bucketName, path string) (string, error) {
 		u.Host = bucketName + "." + u.Host
 	}
 	return u.JoinPath(path).String(), nil
-
 }
 
 func (c *Client) newRequest(ctx context.Context, method, bucketName, path string, body []byte) (*http.Request, error) {
@@ -93,7 +95,11 @@ func (c *Client) newRequest(ctx context.Context, method, bucketName, path string
 
 // do sends the request and handles any error response.
 func (c *Client) do(req *http.Request) (*http.Response, error) {
-	resp, err := spinhttp.Send(req)
+	httpclient := c.httpclient
+	if httpclient == nil {
+		httpclient = http.DefaultClient
+	}
+	resp, err := httpclient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
